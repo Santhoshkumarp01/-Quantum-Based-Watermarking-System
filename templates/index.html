@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quantum Watermarking Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f7f9; margin: 0; padding: 0; }
+        header { background-color: #4CAF50; color: white; text-align: center; padding: 1rem 0; }
+        .container { max-width: 1200px; margin: 20px auto; padding: 20px; background-color: white; box-shadow: 0 0 10px rgba(0,0,0,0.1); border-radius: 8px; }
+        h2 { text-align: center; }
+        form { text-align: center; margin-bottom: 20px; }
+        input[type="file"] { margin: 10px 0; }
+        button { background-color: #4CAF50; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background-color: #45a049; }
+        .image-preview { text-align: center; margin-top: 20px; }
+        .image-preview img { max-width: 80%; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        .download-link { display: block; text-align: center; margin-top: 10px; }
+        .status { text-align: center; font-weight: bold; margin-top: 20px; }
+        .verified { color: #4CAF50; }
+        .tampered { color: #d9534f; }
+        .note { color: #d9534f; text-align: center; margin-bottom: 10px; }
+        .chart-container { width: 60%; margin: 20px auto; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Quantum Watermarking Dashboard 🌐🔐</h1>
+    </header>
+
+    <div class="container">
+        <h2>Upload Main Image & Watermark</h2>
+        <p class="note">* Supported formats: PNG, JPG, JPEG, PDF, TXT | Max size: 5MB *</p>
+        <form id="uploadForm" enctype="multipart/form-data">
+            <label>Main Image (Max 5MB):</label><br>
+            <input type="file" id="image" name="image" accept=".png,.jpg,.jpeg,.pdf,.txt" required><br>
+
+            <label>Watermark (Max 5MB):</label><br>
+            <input type="file" id="watermark" name="watermark" accept=".png,.jpg,.jpeg,.pdf,.txt" required><br>
+
+            <button type="submit">Upload & Apply Watermark</button>
+        </form>
+
+        <div class="image-preview">
+            <h3>Original vs. Processed Image:</h3>
+            <div style="display: flex; justify-content: center; gap: 20px;">
+                <div>
+                    <h4>Original Image</h4>
+                    <img id="originalImage" style="max-width: 300px;">
+                </div>
+                <div>
+                    <h4>Processed/Tampered Image</h4>
+                    <img id="processedImage" style="max-width: 300px;">
+                </div>
+            </div>
+            <a id="downloadLink" class="download-link" style="display: none;" download="processed_image.png">Download Processed Image</a>
+            <a id="reportLink" class="download-link" style="display: none;" download="integrity_report.pdf">Download PDF Report</a>
+        </div>
+
+        <div class="status" id="statusMessage"></div>
+
+        <div class="chart-container">
+            <canvas id="entropyChart"></canvas>
+            <canvas id="strengthChart"></canvas>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById("uploadForm").onsubmit = function(event) {
+            event.preventDefault();
+
+            let mainImage = document.getElementById("image").files[0];
+            let watermarkImage = document.getElementById("watermark").files[0];
+
+            if (!mainImage || !watermarkImage) {
+                alert("Please upload both the main image and watermark.");
+                return;
+            }
+
+            let formData = new FormData();
+            formData.append("image", mainImage);
+            formData.append("watermark", watermarkImage);
+
+            const originalImage = document.getElementById("originalImage");
+            originalImage.src = URL.createObjectURL(mainImage);
+
+            fetch("/upload", {
+                method: "POST",
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    document.getElementById("statusMessage").innerHTML = `<span class='tampered'>❌ ${data.error}</span>`;
+                } else {
+                    const processedImage = document.getElementById("processedImage");
+                    processedImage.src = `/static/${data.filename}`;
+
+                    const downloadLink = document.getElementById("downloadLink");
+                    downloadLink.href = `/static/${data.filename}`;
+                    downloadLink.style.display = "block";
+
+                    const reportLink = document.getElementById("reportLink");
+                    reportLink.href = `/static/${data.report}`;
+                    reportLink.style.display = "block";
+
+                    document.getElementById("statusMessage").innerHTML = `<span class='${data.security_strength >= 90 ? 'verified' : 'tampered'}'>${data.message} (Security Strength: ${data.security_strength}%)</span>`;
+
+                    // Render Charts
+                    renderChart('entropyChart', 'Entropy Level', data.entropy);
+                    renderChart('strengthChart', 'Security Strength', data.security_strength);
+                }
+            })
+            .catch(error => document.getElementById("statusMessage").innerHTML = `<span class='tampered'>❌ Error: ${error}</span>`);
+        };
+
+        function renderChart(canvasId, label, value) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: [label],
+                    datasets: [{
+                        label: label,
+                        data: [value],
+                        backgroundColor: label === 'Entropy Level' ? '#4CAF50' : '#2196F3',
+                        borderColor: label === 'Entropy Level' ? '#388E3C' : '#1976D2',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: { y: { beginAtZero: true, max: 100 } }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
